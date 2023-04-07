@@ -1,0 +1,41 @@
+# Set global options
+global
+    # Enable SSL
+    ssl-default-bind-ciphers ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:DHE-RSA-AES256-SHA
+    ssl-default-bind-options no-sslv3 no-tlsv10 no-tlsv11
+
+# Set defaults for all frontends and backends
+defaults
+    # Set the maximum number of connections
+    maxconn 2000
+    # Set the mode to HTTP
+    mode http
+    # Enable logging
+    option httplog
+    # Enable HTTP keep-alive
+    option http-server-close
+    # Enable TCP keep-alive
+    option tcpka
+
+# Define a frontend to listen on port 443 (HTTPS)
+frontend https-in
+    bind *:443 ssl crt /etc/haproxy/certs/www.pcephas.tech.pem
+    # Set the default backend to forward requests to
+    default_backend web-backend
+
+# Define a backend for the web server(s)
+backend web-backend
+    # Define the server(s)
+    server [STUDENT_ID]-web-01 52.23.178.190 check
+    server [STUDENT_ID]-web-02 54.87.217.69 check
+
+# Define an ACL to check the requested URL
+acl url_root path -i /
+# Define a rule to match the ACL and return the root page with "Holberton School"
+http-response set-header Content-Type text/html
+http-response set-header Server HAProxy
+http-response set-header X-Frame-Options DENY
+http-response set-header X-Content-Type-Options nosniff
+http-response set-header X-XSS-Protection "1; mode=block"
+http-response set-status 200 if url_root
+http-response replace-header (^Server.*) Server Holberton-School
