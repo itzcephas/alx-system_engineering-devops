@@ -1,41 +1,58 @@
-# Set global options
 global
-    # Enable SSL
-    ssl-default-bind-ciphers ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:DHE-RSA-AES256-SHA
-    ssl-default-bind-options no-sslv3 no-tlsv10 no-tlsv11
+        log /dev/log    local0
+        log /dev/log    local1 notice
+        chroot /var/lib/haproxy
+        stats socket /run/haproxy/admin.sock mode 660 level admin expose-fd listeners
+        stats timeout 30s
+        user haproxy
+        group haproxy
+        daemon
 
-# Set defaults for all frontends and backends
+        # Added Default
+        maxconn 2048
+        tune.ssl.default-dh-param 2048
+
+        # Default SSL material locations
+        ca-base /etc/ssl/certs
+        crt-base /etc/ssl/private
+
+        # See: https://ssl-config.mozilla.org/#server=haproxy&server-version=2.0.3&config=intermediate
+        ssl-default-bind-ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+        ssl-default-bind-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+        ssl-default-bind-options ssl-min-ver TLSv1.2 no-tls-tickets
+
 defaults
-    # Set the maximum number of connections
-    maxconn 2000
-    # Set the mode to HTTP
-    mode http
-    # Enable logging
-    option httplog
-    # Enable HTTP keep-alive
-    option http-server-close
-    # Enable TCP keep-alive
-    option tcpka
-
-# Define a frontend to listen on port 443 (HTTPS)
-frontend https-in
-    bind *:443 ssl crt /etc/haproxy/certs/www.pcephas.tech.pem
-    # Set the default backend to forward requests to
-    default_backend web-backend
-
-# Define a backend for the web server(s)
+        log     global
+        mode    http
+        option  httplog
+        option  dontlognull
+        option forwardfor
+        option http-server-close
+        timeout connect 5000
+        timeout client  50000
+        timeout server  50000
+        errorfile 400 /etc/haproxy/errors/400.http
+        errorfile 403 /etc/haproxy/errors/403.http
+        errorfile 408 /etc/haproxy/errors/408.http
+        errorfile 500 /etc/haproxy/errors/500.http
+        errorfile 502 /etc/haproxy/errors/502.http
+        errorfile 503 /etc/haproxy/errors/503.http
+        errorfile 504 /etc/haproxy/errors/504.http
+listen pcephas
+        bind :80
+        mode http
+        balance roundrobin
+        server 136694-web-01 52.23.178.190 check
+        server 136694-web-02 54.87.217.69 check
+frontend www-http
+        bind :80
+        reqadd X-Forwarded-Proto:\ http
+        default_backend web-backend
+frontend www-https
+        bind :443 ssl crt /etc/haproxy/certs/lb-01.pcephas.tech.pem
+        reqadd X-Forwarded-Proto:\ https
+        default_backend web-backend
 backend web-backend
-    # Define the server(s)
-    server [STUDENT_ID]-web-01 52.23.178.190 check
-    server [STUDENT_ID]-web-02 54.87.217.69 check
-
-# Define an ACL to check the requested URL
-acl url_root path -i /
-# Define a rule to match the ACL and return the root page with "Holberton School"
-http-response set-header Content-Type text/html
-http-response set-header Server HAProxy
-http-response set-header X-Frame-Options DENY
-http-response set-header X-Content-Type-Options nosniff
-http-response set-header X-XSS-Protection "1; mode=block"
-http-response set-status 200 if url_root
-http-response replace-header (^Server.*) Server Holberton-School
+        redirect scheme https if !{ ssl_fc }
+        server 136694-web-01 52.23.178.190 check
+        server 136694-web-02 54.87.217.69 check
