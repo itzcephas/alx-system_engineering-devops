@@ -1,33 +1,25 @@
 #!/usr/bin/python3
-""" Script that uses JSONPlaceholder API to get information about an employee """
-
+""" Script that uses JSONPlaceholder API to get information about employee """
 import requests
 import sys
 
-def get_employee_data(employee_id):
-    url = 'https://jsonplaceholder.typicode.com/'
-
-    user = f"{url}users/{employee_id}"
-    res = requests.get(user)
-    json_o = res.json()
-
-    todos = f"{url}todos?userId={employee_id}"
-    res = requests.get(todos)
-    tasks = res.json()
-
-    completed_tasks = [task for task in tasks if task.get("completed")]
-
-    return json_o, completed_tasks, tasks
-
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python3 employee_data.py <employee_id>")
-        sys.exit(1)
+    url = 'https://jsonplaceholder.typicode.com/'
 
-    employee_id = sys.argv[1]
-    json_o, completed_tasks, tasks = get_employee_data(employee_id)
+    user = '{}users/{}'.format(url, sys.argv[1])
+    res = requests.get(user)
+    json_o = res.json()
+    print("Employee {} is done with tasks".format(json_o.get('name')), end="")
 
-    print(f"Employee {json_o.get('name')} is done with tasks ({len(completed_tasks)}/{len(tasks)}):")
-    for task in completed_tasks:
-        print(f"\t{task.get('title')}")
+    todos = '{}todos?userId={}'.format(url, sys.argv[1])
+    res = requests.get(todos)
+    tasks = res.json()
+    l_task = []
+    for task in tasks:
+        if task.get('completed') is True:
+            l_task.append(task)
+
+    print("({}/{}):".format(len(l_task), len(tasks)))
+    for task in l_task:
+        print("\t {}".format(task.get("title")))
