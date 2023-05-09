@@ -1,63 +1,46 @@
 #!/usr/bin/python3
 """ Module for storing the count_words function. """
-from requests import get
 
+import requests
 
-def count_words(subreddit, word_list, word_count=[], page_after=None):
-    """
-    Prints the count of the given words present in the title of the
-    subreddit's hottest articles.
-    """
-    headers = {'User-Agent': 'HolbertonSchool'}
+def count_words(subreddit, word_list, count_dict=None, after=None):
+    """Recursively queries the Reddit API and counts occurrences of given keywords in hot article titles"""
 
-    word_list = [word.lower() for word in word_list]
+    # Initialize count_dict on first call
+    if count_dict is None:
+        count_dict = {}
 
-    if bool(word_count) is False:
+    # Base case: subreddit is invalid
+    if subreddit is None:
+        return
+
+    # Set up API request
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    params = {'limit': 100}
+    if after:
+        params['after'] = after
+    url = 'https://www.reddit.com/r/{}/hot.json'.format(subreddit)
+
+    # Send API request and handle response
+    response = requests.get(url, headers=headers, params=params, allow_redirects=False)
+    if response.status_code != 200:
+        return
+    data = response.json()['data']
+    after = data['after']
+
+    # Traverse all posts on this page and count occurrences of keywords in their titles
+    for post in data['children']:
+        title = post['data']['title'].lower()
         for word in word_list:
-            word_count.append(0)
+            if ' ' + word.lower() + ' ' in title:
+                count_dict[word.lower()] = count_dict.get(word.lower(), 0) + 1
 
-    if page_after is None:
-        url = 'https://www.reddit.com/r/{}/hot.json'.format(subreddit)
-        r = get(url, headers=headers, allow_redirects=False)
-        if r.status_code == 200:
-            for child in r.json()['data']['children']:
-                i = 0
-                for i in range(len(word_list)):
-                    for word in [w for w in child['data']['title'].split()]:
-                        word = word.lower()
-                        if word_list[i] == word:
-                            word_count[i] += 1
-                    i += 1
+    # Recursive call with next page of results
+    if after is not None:
+        count_words(subreddit, word_list, count_dict, after)
 
-            if r.json()['data']['after'] is not None:
-                count_words(subreddit, word_list,
-                            word_count, r.json()['data']['after'])
-    else:
-        url = ('https://www.reddit.com/r/{}/hot.json?after={}'
-               .format(subreddit,
-                       page_after))
-        r = get(url, headers=headers, allow_redirects=False)
-
-        if r.status_code == 200:
-            for child in r.json()['data']['children']:
-                i = 0
-                for i in range(len(word_list)):
-                    for word in [w for w in child['data']['title'].split()]:
-                        word = word.lower()
-                        if word_list[i] == word:
-                            word_count[i] += 1
-                    i += 1
-            if r.json()['data']['after'] is not None:
-                count_words(subreddit, word_list,
-                            word_count, r.json()['data']['after'])
-            else:
-                dicto = {}
-                for key_word in list(set(word_list)):
-                    i = word_list.index(key_word)
-                    if word_count[i] != 0:
-                        dicto[word_list[i]] = (word_count[i] *
-                                               word_list.count(word_list[i]))
-
-                for key, value in sorted(dicto.items(),
-                                         key=lambda x: (-x[1], x[0])):
-                    print('{}: {}'.format(key, value))
+    # Print results when all pages have been processed
+    elif count_dict:
+        sorted_counts = sorted(count_dict.items(), key=lambda x: (-x[1], x[0]))
+        for word, count in sorted_counts:
+            print(word, count)
